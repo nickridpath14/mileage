@@ -35,8 +35,50 @@ MONTH_NAMES = [
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
+# All activity-type strings that Garmin, Strava, Wahoo, and other platforms
+# send to Intervals.icu that represent some form of running.
+# Types are matched case-insensitively so minor capitalisation differences
+# (e.g. "trail_run" vs "TrailRun") are handled automatically.
+RUN_TYPES: set[str] = {
+    # Standard outdoor run
+    "run",
+    # Treadmill / indoor
+    "treadmill",
+    "indoorrunning",
+    "indoor_running",
+    # Trail
+    "trailrun",
+    "trail_run",
+    # Track
+    "trackrun",
+    "track_run",
+    # Virtual / Zwift run
+    "virtualrun",
+    "virtual_run",
+    # Garmin ultra-run category
+    "ultrarun",
+    "ultra_run",
+    # Garmin obstacle / mud run
+    "obstaclerun",
+    # Strava "Race" subtype that maps to running
+    "running",
+}
+
+
+def is_run(activity_type: str) -> bool:
+    """Return True if the activity type is any form of running.
+
+    Normalises the type string by lowercasing and stripping underscores/spaces
+    so that variants like 'TrailRun', 'trail_run', and 'trail run' all match.
+    Falls back to a substring check ('run' in type) to catch any future or
+    platform-specific type strings not yet in RUN_TYPES.
+    """
+    normalised = activity_type.lower().replace("_", "").replace(" ", "")
+    return normalised in RUN_TYPES or "run" in normalised
+
 
 def fetch_activities(api_key: str) -> list:
+
     try:
         resp = requests.get(API_URL, auth=(USERNAME, api_key), timeout=30)
         resp.raise_for_status()
@@ -65,8 +107,7 @@ def parse_date(date_str: str) -> datetime:
             return datetime.strptime(date_str[:19], fmt)
         except ValueError:
             continue
-    # Do NOT include date_str in the message — it is a raw API field and
-    # would leak private activity metadata into GitHub Actions logs.
+    # Do NOT include date_str in the message — it is a raw API field
     raise ValueError("Unrecognised date format in API response")
 
 
@@ -201,7 +242,7 @@ def main():
         sys.exit(1)
 
     activities = fetch_activities(api_key)
-    runs       = [a for a in activities if a.get("type") == "Run"]
+    runs       = [a for a in activities if is_run(a.get("type", ""))]
     metrics    = compute_metrics(runs)
     dashboard  = render_dashboard(metrics)
 
