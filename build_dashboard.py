@@ -24,7 +24,7 @@ WHITE   = "\033[97m"
 DIM     = "\033[2m"
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-API_URL   = "https://intervals.icu/api/v1/athlete/0/activities"
+API_URL   = "https://intervals.icu/api/v1/athlete/i694449/activities"
 USERNAME  = "API_KEY"
 BAR_MAX   = 15
 BAR_FULL  = "█"
