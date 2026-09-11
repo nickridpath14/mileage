@@ -17,12 +17,11 @@
             --border-subtle: #1e2d4a;
             --border-highlight: #2d4268;
             --accent-primary: #38bdf8;
-            --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-            --bar-gradient: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
             --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
         }
 
         * {
@@ -232,14 +231,31 @@
             overflow: hidden;
             margin-bottom: 8px;
             border: 1px solid rgba(255, 255, 255, 0.04);
+            display: flex;
         }
 
         .bar-fill {
             height: 100%;
             background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
-            border-radius: 5px;
             transition: width 0.5s ease;
-            box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+        }
+
+        .bar-fill.goal-met {
+            background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+        }
+
+        .bar-fill-overage {
+            height: 100%;
+            background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+            transition: width 0.5s ease;
+            box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+        }
+
+        .month-miles-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .month-miles {
@@ -249,25 +265,19 @@
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         }
 
-        .footer {
-            background: #090e1a;
-            border-top: 1px solid #1e2d4a;
-            padding: 16px 24px;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
+        .month-miles.goal-text {
+            color: #10b981;
         }
 
-        .footer a {
-            color: #38bdf8;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.2s ease;
-        }
-
-        .footer a:hover {
-            color: #7dd3fc;
-            text-decoration: underline;
+        .overage-tag {
+            font-size: 10px;
+            font-weight: 700;
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         }
 
         .error {
@@ -332,7 +342,6 @@
             const [metrics, setMetrics] = useState(null);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
-            const [lastUpdate, setLastUpdate] = useState(new Date());
 
             const fetchMetrics = async () => {
                 try {
@@ -341,7 +350,6 @@
                     const data = await response.json();
                     setMetrics(data);
                     setError(null);
-                    setLastUpdate(new Date());
                 } catch (err) {
                     let msg = err.message;
                     if (window.location.protocol === 'file:') {
@@ -354,7 +362,6 @@
 
             useEffect(() => {
                 fetchMetrics();
-                // Auto-refresh every 5 minutes
                 const interval = setInterval(fetchMetrics, 5 * 60 * 1000);
                 return () => clearInterval(interval);
             }, []);
@@ -391,7 +398,13 @@
                 return names[month - 1];
             };
 
-            const maxMiles = Math.max(...Object.values(metrics.monthly || {}), 1);
+            const GOAL_MILES = 100;
+            const currentMonth = metrics.current_month || 12;
+            const monthlyValues = Object.values(metrics.monthly || {});
+            const maxMiles = Math.max(...monthlyValues, GOAL_MILES);
+
+            // Hide future months
+            const activeMonths = Array.from({ length: currentMonth }, (_, i) => i + 1);
 
             return (
                 <div className="dashboard">
@@ -432,29 +445,43 @@
                     <div className="section">
                         <div className="section-title">{metrics.year} Monthly Breakdown</div>
                         <div className="monthly-chart">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => {
+                            {activeMonths.map((month) => {
                                 const miles = metrics.monthly?.[month] ?? metrics.monthly?.[String(month)] ?? 0;
-                                const percentage = maxMiles > 0 ? (miles / maxMiles) * 100 : 0;
+                                const isGoalMet = miles >= GOAL_MILES;
+
+                                const goalMiles = Math.min(miles, GOAL_MILES);
+                                const overageMiles = Math.max(0, miles - GOAL_MILES);
+
+                                const goalWidth = (goalMiles / maxMiles) * 100;
+                                const overageWidth = (overageMiles / maxMiles) * 100;
+
                                 return (
                                     <div key={month} className="month-item">
                                         <div className="month-name">{getMonthName(month)}</div>
                                         <div className="bar-container">
                                             <div 
-                                                className="bar-fill" 
-                                                style={{ width: `${percentage}%` }}
+                                                className={`bar-fill ${isGoalMet ? 'goal-met' : ''}`}
+                                                style={{ width: `${goalWidth}%` }}
                                             ></div>
+                                            {overageWidth > 0 && (
+                                                <div 
+                                                    className="bar-fill-overage" 
+                                                    style={{ width: `${overageWidth}%` }}
+                                                ></div>
+                                            )}
                                         </div>
-                                        <div className="month-miles">
-                                            {miles.toLocaleString('en-US', { maximumFractionDigits: 1 })} mi
+                                        <div className="month-miles-row">
+                                            <span className={`month-miles ${isGoalMet ? 'goal-text' : ''}`}>
+                                                {miles.toLocaleString('en-US', { maximumFractionDigits: 1 })} mi
+                                            </span>
+                                            {overageMiles > 0 && (
+                                                <span className="overage-tag">+{overageMiles.toFixed(1)}</span>
+                                            )}
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
-                    </div>
-
-                    <div className="footer">
-                        Data from <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer">intervals.icu</a> &bull; Auto-updates every 5 minutes
                     </div>
                 </div>
             );

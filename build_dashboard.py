@@ -12,6 +12,7 @@ Usage:
 import os
 import sys
 import json
+import re
 import requests
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
@@ -22,78 +23,46 @@ BOLD    = "\033[1m"
 BLUE    = "\033[34m"
 CYAN    = "\033[36m"
 GREEN   = "\033[32m"
+YELLOW  = "\033[33m"  # Overage color
 WHITE   = "\033[97m"
 DIM     = "\033[2m"
 
 # ─── Config ───────────────────────────────────────────────────────────
-API_URL   = "https://intervals.icu/api/v1/athlete/i694449/activities?oldest=2000-01-01"
-USERNAME  = "API_KEY"
-BAR_MAX   = 15
-BAR_FULL  = "█"
-BAR_EMPTY = "░"
+API_URL    = "https://intervals.icu/api/v1/athlete/i694449/activities?oldest=2000-01-01"
+USERNAME   = "API_KEY"
+BAR_MAX    = 15
+BAR_FULL   = "█"
+BAR_EMPTY  = "░"
+GOAL_MILES = 100.0   # Monthly mileage goal
 
 MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
-# All activity-type strings that Garmin, Strava, Wahoo, and other platforms
-# send to Intervals.icu that represent some form of running.
-# Types are matched case-insensitively so minor capitalisation differences
-# (e.g. "trail_run" vs "TrailRun") are handled automatically.
 RUN_TYPES: set[str] = {
-    # Standard outdoor run
-    "run",
-    # Treadmill / indoor
-    "treadmill",
-    "indoorrunning",
-    "indoor_running",
-    # Trail
-    "trailrun",
-    "trail_run",
-    # Track
-    "trackrun",
-    "track_run",
-    # Virtual / Zwift run
-    "virtualrun",
-    "virtual_run",
-    # Garmin ultra-run category
-    "ultrarun",
-    "ultra_run",
-    # Garmin obstacle / mud run
-    "obstaclerun",
-    # Strava "Race" subtype that maps to running
-    "running",
+    "run", "treadmill", "indoorrunning", "indoor_running",
+    "trailrun", "trail_run", "trackrun", "track_run",
+    "virtualrun", "virtual_run", "ultrarun", "ultra_run",
+    "obstaclerun", "running",
 }
 
 
 def is_run(activity_type: str) -> bool:
-    """Return True if the activity type is any form of running.
-
-    Normalises the type string by lowercasing and stripping underscores/spaces
-    so that variants like 'TrailRun', 'trail_run', and 'trail run' all match.
-    Falls back to a substring check ('run' in type) to catch any future or
-    platform-specific type strings not yet in RUN_TYPES.
-    """
     normalised = activity_type.lower().replace("_", "").replace(" ", "")
     return normalised in RUN_TYPES or "run" in normalised
 
 
 def fetch_activities(api_key: str) -> list:
-
     try:
         resp = requests.get(API_URL, auth=(USERNAME, api_key), timeout=30)
         resp.raise_for_status()
         return resp.json()
     except requests.exceptions.HTTPError as e:
-        # Log only the status code — never the response body, which may contain
-        # private athlete data that would surface in public GitHub Actions logs.
         status = e.response.status_code if e.response is not None else "unknown"
         print(f"HTTP error fetching activities: status {status}", file=sys.stderr)
         sys.exit(1)
     except requests.exceptions.RequestException:
-        # Suppress the full exception string; it can include URLs with embedded
-        # credentials or server error messages.
         print("Network error fetching activities. Check connectivity.", file=sys.stderr)
         sys.exit(1)
 
@@ -103,13 +72,11 @@ def meters_to_miles(meters: float) -> float:
 
 
 def parse_date(date_str: str) -> datetime:
-    """Parse ISO 8601 date string (first 19 chars)."""
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
         try:
             return datetime.strptime(date_str[:19], fmt)
         except ValueError:
             continue
-    # Do NOT include date_str in the message — it is a raw API field
     raise ValueError("Unrecognised date format in API response")
 
 
@@ -121,7 +88,7 @@ def compute_metrics(runs: list) -> dict:
     all_time_miles  = 0.0
     ytd_miles       = 0.0
     trailing7_miles = 0.0
-    monthly = defaultdict(float)  # month (1-12) → miles
+    monthly = defaultdict(float)
 
     for run in runs:
         raw_dist = run.get("distance") or 0.0
@@ -142,29 +109,23 @@ def compute_metrics(runs: list) -> dict:
             trailing7_miles += miles
 
     return {
-        "all_time":  round(all_time_miles, 1),
-        "ytd":       round(ytd_miles, 1),
-        "trailing7": round(trailing7_miles, 1),
-        "monthly":   {m: round(monthly.get(m, 0.0), 1) for m in range(1, 13)},
-        "year":      now.year,
-        "generated": now.strftime("%Y-%m-%d %H:%M UTC"),
+        "all_time":      round(all_time_miles, 1),
+        "ytd":           round(ytd_miles, 1),
+        "trailing7":     round(trailing7_miles, 1),
+        "monthly":       {m: round(monthly.get(m, 0.0), 1) for m in range(1, 13)},
+        "year":          now.year,
+        "current_month": now.month,
+        "generated":     now.strftime("%Y-%m-%d %H:%M UTC"),
     }
 
 
-# ─── Rendering helpers ───────────────────────────────────────────────────────
-
-def bar(miles: float, max_miles: float) -> str:
-    """Render a proportional block bar."""
-    if max_miles == 0:
-        filled = 0
-    else:
-        filled = round((miles / max_miles) * BAR_MAX)
-    empty = BAR_MAX - filled
-    return f"{GREEN}{BAR_FULL * filled}{RESET}{DIM}{BAR_EMPTY * empty}{RESET}"
+def strip_ansi(text: str) -> str:
+    """Strip ANSI codes for calculating accurate visible padding length."""
+    return re.sub(r'\x1b\[[0-9;]*m', '', text)
 
 
 def render_dashboard(metrics: dict) -> str:
-    W = 58  # inner width (between the │ borders)
+    W = 58  # Inner width
     lines = []
 
     def border_top():
@@ -177,11 +138,11 @@ def render_dashboard(metrics: dict) -> str:
         return f"{BLUE}└{'─' * W}┘{RESET}"
 
     def border_row(text: str):
-        """Row where text already contains ANSI codes — right border only."""
-        return f"{BLUE}│{RESET} {text} {BLUE}│{RESET}"
+        vis_len = len(strip_ansi(text))
+        pad = " " * max(0, W - vis_len - 2)
+        return f"{BLUE}│{RESET} {text}{pad} {BLUE}│{RESET}"
 
     def plain_row(text: str, width: int = W):
-        """Row with plain text, padded to width, then bordered."""
         return f"{BLUE}│{RESET} {text:<{width - 2}} {BLUE}│{RESET}"
 
     # ── Header ──────────────────────────────────────────────────────────
@@ -210,34 +171,44 @@ def render_dashboard(metrics: dict) -> str:
     lines.append(plain_row(f"{BOLD}{WHITE}{metrics['year']} MONTHLY BREAKDOWN{RESET}"))
     lines.append(border_mid())
 
-    monthly   = metrics["monthly"]
-    max_miles = max(monthly.values(), default=1.0)
+    monthly       = metrics["monthly"]
+    current_month = metrics.get("current_month", 12)
+    max_miles     = max(list(monthly.values()) + [GOAL_MILES])
 
-    for month_num in range(1, 13):
-        miles     = monthly.get(month_num, 0.0)
-        month_bar = bar(miles, max_miles)
-        miles_str = f"{miles:5.1f} mi"
-        row = (
-            f"{CYAN}{MONTH_NAMES[month_num - 1]}{RESET} "
-            f"{month_bar} "
-            f"{BOLD}{WHITE}{miles_str}{RESET}"
-        )
+    # Show only up to current month (filters future 0.0 mi months)
+    for month_num in range(1, current_month + 1):
+        miles = monthly.get(month_num, 0.0)
+
+        if miles >= GOAL_MILES:
+            goal_blocks  = round((GOAL_MILES / max_miles) * BAR_MAX)
+            over_miles   = miles - GOAL_MILES
+            over_blocks  = round((over_miles / max_miles) * BAR_MAX)
+            empty_blocks = max(0, BAR_MAX - goal_blocks - over_blocks)
+
+            bar_str = (
+                f"{GREEN}{BAR_FULL * goal_blocks}"
+                f"{YELLOW}{BAR_FULL * over_blocks}"
+                f"{DIM}{BAR_EMPTY * empty_blocks}{RESET}"
+            )
+            
+            if over_miles > 0.05:
+                miles_str = f"{GREEN}{miles:5.1f} mi{RESET} {YELLOW}(+{over_miles:.1f}){RESET}"
+            else:
+                miles_str = f"{GREEN}{miles:5.1f} mi{RESET} {GREEN}★{RESET}"
+        else:
+            filled = round((miles / max_miles) * BAR_MAX)
+            empty  = BAR_MAX - filled
+            bar_str = f"{CYAN}{BAR_FULL * filled}{RESET}{DIM}{BAR_EMPTY * empty}{RESET}"
+            miles_str = f"{BOLD}{WHITE}{miles:5.1f} mi{RESET}"
+
+        row = f"{CYAN}{MONTH_NAMES[month_num - 1]}{RESET} {bar_str} {miles_str}"
         lines.append(border_row(row))
 
-    # ── Footer ──────────────────────────────────────────────────────────
-    lines.append(border_mid())
-    lines.append(plain_row(f"{DIM}Data: intervals.icu  |  Rendered by build_dashboard.py{RESET}"))
     lines.append(border_bot())
-
     return "\n".join(lines)
 
 
-# ─── Entry point ─────────────────────────────────────────────────────────
-
 def main():
-    # Retrieve the API key exclusively from the environment — never hardcode it.
-    # The script exits here before any network call if the variable is absent,
-    # ensuring no partial or anonymous request is made.
     api_key = os.environ.get("INTERVALS_API_KEY", "").strip()
     if not api_key:
         print("Error: INTERVALS_API_KEY environment variable is not set.", file=sys.stderr)
@@ -248,12 +219,10 @@ def main():
     metrics    = compute_metrics(runs)
     dashboard  = render_dashboard(metrics)
 
-    # Write ANSI dashboard to run.txt
     with open("run.txt", "w") as f:
         f.write(dashboard + "\n")
     print("✓ Written run.txt", file=sys.stderr)
 
-    # Write JSON metrics to metrics.json
     with open("metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
         f.write("\n")
