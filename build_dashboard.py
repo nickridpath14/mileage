@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
 build_dashboard.py
-Fetches running activities from Intervals.icu and renders an ANSI-colored
-ASCII dashboard to stdout. Pipe the output to run.txt for static hosting.
+Fetches running activities from Intervals.icu and renders:
+1. An ANSI-colored ASCII dashboard to run.txt (for CLI access)
+2. A JSON metrics file to metrics.json (for web dashboard)
 
 Usage:
-    INTERVALS_API_KEY=your_key python build_dashboard.py > run.txt
+    INTERVALS_API_KEY=your_key python build_dashboard.py
 """
 
 import os
 import sys
+import json
 import requests
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-# ─── ANSI color codes ─────────────────────────────────────────────────────────
+# ─── ANSI color codes ───────────────────────────────────────────────────────
 RESET   = "\033[0m"
 BOLD    = "\033[1m"
 BLUE    = "\033[34m"
@@ -23,7 +25,7 @@ GREEN   = "\033[32m"
 WHITE   = "\033[97m"
 DIM     = "\033[2m"
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# ─── Config ───────────────────────────────────────────────────────────
 API_URL   = "https://intervals.icu/api/v1/athlete/i694449/activities?oldest=2000-01-01"
 USERNAME  = "API_KEY"
 BAR_MAX   = 15
@@ -149,7 +151,7 @@ def compute_metrics(runs: list) -> dict:
     }
 
 
-# ─── Rendering helpers ────────────────────────────────────────────────────────
+# ─── Rendering helpers ───────────────────────────────────────────────────────
 
 def bar(miles: float, max_miles: float) -> str:
     """Render a proportional block bar."""
@@ -182,13 +184,13 @@ def render_dashboard(metrics: dict) -> str:
         """Row with plain text, padded to width, then bordered."""
         return f"{BLUE}│{RESET} {text:<{width - 2}} {BLUE}│{RESET}"
 
-    # ── Header ────────────────────────────────────────────────────────────────
+    # ── Header ──────────────────────────────────────────────────────────
     lines.append(border_top())
     lines.append(plain_row(f"{BOLD}{BLUE}🏃  RUNNING DASHBOARD{RESET}"))
     lines.append(plain_row(f"{DIM}Updated: {metrics['generated']}{RESET}"))
     lines.append(plain_row(""))
 
-    # ── Summary stats ─────────────────────────────────────────────────────────
+    # ── Summary stats ────────────────────────────────────────────────────────
     lines.append(border_mid())
     lines.append(plain_row(f"{BOLD}{WHITE}SUMMARY STATS{RESET}"))
     lines.append(border_mid())
@@ -222,7 +224,7 @@ def render_dashboard(metrics: dict) -> str:
         )
         lines.append(border_row(row))
 
-    # ── Footer ────────────────────────────────────────────────────────────────
+    # ── Footer ──────────────────────────────────────────────────────────
     lines.append(border_mid())
     lines.append(plain_row(f"{DIM}Data: intervals.icu  |  Rendered by build_dashboard.py{RESET}"))
     lines.append(border_bot())
@@ -230,7 +232,7 @@ def render_dashboard(metrics: dict) -> str:
     return "\n".join(lines)
 
 
-# ─── Entry point ──────────────────────────────────────────────────────────────
+# ─── Entry point ─────────────────────────────────────────────────────────
 
 def main():
     # Retrieve the API key exclusively from the environment — never hardcode it.
@@ -246,7 +248,15 @@ def main():
     metrics    = compute_metrics(runs)
     dashboard  = render_dashboard(metrics)
 
-    print(dashboard)
+    # Write ANSI dashboard to run.txt
+    with open("run.txt", "w") as f:
+        f.write(dashboard)
+    print("✓ Written run.txt", file=sys.stderr)
+
+    # Write JSON metrics to metrics.json
+    with open("metrics.json", "w") as f:
+        json.dump(metrics, f, indent=2)
+    print("✓ Written metrics.json", file=sys.stderr)
 
 
 if __name__ == "__main__":
