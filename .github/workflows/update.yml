@@ -1,6 +1,6 @@
 # Security notes:
 #   - INTERVALS_API_KEY is injected only into the step that needs it.
-#   - Only run.txt is ever staged; git add . / -A / commit -a are intentionally
+#   - Only run.txt and metrics.json are ever staged; git add . / -A / commit -a are intentionally
 #     absent to prevent debug files or raw API responses from being committed.
 #   - The Python script never prints raw JSON to stdout or stderr.
 name: Update Running Dashboard
@@ -32,16 +32,16 @@ jobs:
       - name: Generate dashboard
         env:
           INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
-        run: python build_dashboard.py > run.txt
+        run: python build_dashboard.py
 
-      - name: Commit and push run.txt
+      - name: Commit and push dashboard updates
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Stage ONLY run.txt. Never use git add . or git add -A — raw data
+          # Stage ONLY run.txt and metrics.json. Never use git add . or git add -A — raw data
           # or debug files must never be pushed to the public repository.
-          git add run.txt
+          git add run.txt metrics.json
           # Exit gracefully if nothing changed (idempotent run)
           git diff --cached --quiet && echo "No changes to commit." && exit 0
-          git commit -m "chore: update run.txt [skip ci]"
+          git commit -m "chore: update dashboard data [skip ci]"
           git push

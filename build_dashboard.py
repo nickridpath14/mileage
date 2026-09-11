@@ -13,7 +13,7 @@ import os
 import sys
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 # ─── ANSI color codes ───────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ def parse_date(date_str: str) -> datetime:
 
 
 def compute_metrics(runs: list) -> dict:
-    now         = datetime.now()
+    now         = datetime.now(timezone.utc).replace(tzinfo=None)
     year_start  = datetime(now.year, 1, 1)
     week_ago    = now - timedelta(days=7)
 
@@ -142,10 +142,10 @@ def compute_metrics(runs: list) -> dict:
             trailing7_miles += miles
 
     return {
-        "all_time":  all_time_miles,
-        "ytd":       ytd_miles,
-        "trailing7": trailing7_miles,
-        "monthly":   dict(monthly),
+        "all_time":  round(all_time_miles, 1),
+        "ytd":       round(ytd_miles, 1),
+        "trailing7": round(trailing7_miles, 1),
+        "monthly":   {m: round(monthly.get(m, 0.0), 1) for m in range(1, 13)},
         "year":      now.year,
         "generated": now.strftime("%Y-%m-%d %H:%M UTC"),
     }
@@ -186,7 +186,7 @@ def render_dashboard(metrics: dict) -> str:
 
     # ── Header ──────────────────────────────────────────────────────────
     lines.append(border_top())
-    lines.append(plain_row(f"{BOLD}{BLUE}🏃  RUNNING DASHBOARD{RESET}"))
+    lines.append(plain_row(f"{BOLD}{BLUE}RUNNING DASHBOARD{RESET}"))
     lines.append(plain_row(f"{DIM}Updated: {metrics['generated']}{RESET}"))
     lines.append(plain_row(""))
 
@@ -250,12 +250,13 @@ def main():
 
     # Write ANSI dashboard to run.txt
     with open("run.txt", "w") as f:
-        f.write(dashboard)
+        f.write(dashboard + "\n")
     print("✓ Written run.txt", file=sys.stderr)
 
     # Write JSON metrics to metrics.json
     with open("metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
+        f.write("\n")
     print("✓ Written metrics.json", file=sys.stderr)
 
 
