@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🏃 Running Dashboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #root {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .dashboard {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 8px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .section {
+            padding: 30px 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .monthly-chart {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .month-item {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .month-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .month-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 24px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            position: relative;
+        }
+
+        .bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.3),
+                transparent
+            );
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .month-miles {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .footer {
+            background: #f9fafb;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .footer a:hover {
+            color: #764ba2;
+        }
+
+        .error {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .monthly-chart {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .stat-value {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const { useState, useEffect } = React;
+
+        function Dashboard() {
+            const [metrics, setMetrics] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [lastUpdate, setLastUpdate] = useState(new Date());
+
+            const fetchMetrics = async () => {
+                try {
+                    const response = await fetch('metrics.json');
+                    if (!response.ok) throw new Error('Failed to fetch metrics');
+                    const data = await response.json();
+                    setMetrics(data);
+                    setError(null);
+                    setLastUpdate(new Date());
+                } catch (err) {
+                    setError(err.message);
+                }
+                setLoading(false);
+            };
+
+            useEffect(() => {
+                fetchMetrics();
+                // Auto-refresh every 5 minutes
+                const interval = setInterval(fetchMetrics, 5 * 60 * 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            if (error && !metrics) {
+                return (
+                    <div className="dashboard">
+                        <div className="header">
+                            <h1>🏃 Running Dashboard</h1>
+                        </div>
+                        <div className="error">
+                            Error loading metrics: {error}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (loading || !metrics) {
+                return (
+                    <div className="dashboard">
+                        <div className="header">
+                            <h1>🏃 Running Dashboard</h1>
+                        </div>
+                        <div className="loading">
+                            <div className="spinner"></div>
+                            <p style={{ marginTop: '15px' }}>Loading your running stats...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const getMonthName = (month) => {
+                const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return names[month - 1];
+            };
+
+            const maxMiles = Math.max(...Object.values(metrics.monthly || {}), 1);
+
+            return (
+                <div className="dashboard">
+                    <div className="header">
+                        <h1>
+                            🏃 Running Dashboard
+                        </h1>
+                        <p>
+                            <span className="status-indicator"></span>
+                            Live Stats
+                        </p>
+                        <div className="timestamp">
+                            Last updated: {metrics.generated}
+                        </div>
+                    </div>
+
+                    {/* Summary Stats Section */}
+                    <div className="section">
+                        <div className="section-title">Summary Stats</div>
+                        <div className="stats-grid">
+                            <div className="stat-card">
+                                <div className="stat-label">All-Time</div>
+                                <div className="stat-value">{metrics.all_time.toLocaleString('en-US', { maximumFractionDigits: 1 })}</div>
+                                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>miles</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-label">Year-to-Date</div>
+                                <div className="stat-value">{metrics.ytd.toLocaleString('en-US', { maximumFractionDigits: 1 })}</div>
+                                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>{metrics.year}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-label">Last 7 Days</div>
+                                <div className="stat-value">{metrics.trailing7.toLocaleString('en-US', { maximumFractionDigits: 1 })}</div>
+                                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>miles</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Monthly Breakdown Section */}
+                    <div className="section">
+                        <div className="section-title">{metrics.year} Monthly Breakdown</div>
+                        <div className="monthly-chart">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => {
+                                const miles = metrics.monthly[month] || 0;
+                                const percentage = maxMiles > 0 ? (miles / maxMiles) * 100 : 0;
+                                return (
+                                    <div key={month} className="month-item">
+                                        <div className="month-name">{getMonthName(month)}</div>
+                                        <div className="bar-container">
+                                            <div 
+                                                className="bar-fill" 
+                                                style={{ width: `${percentage}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="month-miles">
+                                            {miles.toLocaleString('en-US', { maximumFractionDigits: 1 })} mi
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="footer">
+                        Data from <a href="https://intervals.icu" target="_blank" rel="noopener noreferrer">intervals.icu</a> • Auto-updates every 5 minutes
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>
