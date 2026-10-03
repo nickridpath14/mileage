@@ -1,7 +1,7 @@
 {
   "all_time": 1131.5,
   "ytd": 783.9,
-  "trailing7": 16.4,
+  "trailing7": 10.1,
   "monthly": {
     "1": 100.7,
     "2": 109.5,
@@ -18,5 +18,5 @@
   },
   "year": 2026,
   "current_month": 10,
-  "generated": "2026-10-03 03:08 UTC"
+  "generated": "2026-10-03 10:53 UTC"
 }
